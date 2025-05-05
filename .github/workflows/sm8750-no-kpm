@@ -1,5 +1,5 @@
 
-name: OnePlus SM8750 Build SuKiSu SUSFS
+name: sm8750-no-kpm
 on:
   workflow_dispatch:
     inputs:
