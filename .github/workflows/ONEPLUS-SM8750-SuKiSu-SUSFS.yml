@@ -48,7 +48,7 @@ jobs:
       - name: Configure Git
         run: |
          git config --global user.name "build"
-         git config --global user.email "3028172686@qq.com"
+         git config --global user.email "2772000679@qq.com"
 
       - name: Install dependencies
         run: |
@@ -94,15 +94,14 @@ jobs:
            cp -r ../SukiSU_patch/other/lz4k/lib/* ./common/lib
            cp -r ../SukiSU_patch/other/lz4k/crypto/* ./common/crypto
            # Apply patches
-           cd ./common       
+           cd ./common
+
+           sed -i 's/-32,12 +32,38/-32,11 +32,37/g' 50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch
+           sed -i '/#include <trace\/hooks\/fs.h>/d' 50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch
+
            patch -p1 < 50_add_susfs_in_gki-${{ github.event.inputs.ANDROID_VERSION }}-${{ github.event.inputs.KERNEL_VERSION }}.patch || true
-           # cp ../../kernel_patches/69_hide_stuff.patch ./
            cp ../../SukiSU_patch/hooks/syscall_hooks.patch ./
-           # patch -p1 -F 3 < 69_hide_stuff.patch
            patch -p1 -F 3 < syscall_hooks.patch
-           rm -rf ./fs/namespace.c
-           rm -rf ./fs/namespace.c.rej
-           cp ../../SukiSU_patch/namespace.c ./fs
            echo "完成"
 
       - name: Apply lz4kd Patches
@@ -152,13 +151,21 @@ jobs:
         run: |
          cd kernel_workspace/kernel_platform
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
-      
-       
+
+
+      - name: Add sched_ext
+        run: |
+         cd kernel_workspace/kernel_platform/
+         git clone https://github.com/senhai1737/sched_ext.git
+         cp -r ./sched_ext/* ./common/kernel/sched
+         rm -rf ./sched_ext/.git
+         cd common/kernel/sched
+         sed -i.bak '/# include "ext.c"/a\# include "hmbird_sched_proc_main.c"\n#endif\n\n#ifdef CONFIG_SLIM_SCHED\n# include "slim_sysctl.c"' build_policy.c
+                   
       - name: Build kernel
         run: |
          cd kernel_workspace/kernel_platform
          tools/bazel run --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
-
       - name: Make AnyKernel3
         run: |
          cd kernel_workspace/kernel_platform/dist/
@@ -170,11 +177,7 @@ jobs:
          
       - name: Make AnyKernel3
         run: |
-         if [ "${{ github.event.inputs.FEIL }}" = "oneplus_ace5_pro" ]; then
-          git clone -b a5p https://github.com/senhai1737/AnyKernel3.git --depth=1
-         else
-          git clone https://github.com/senhai1737/AnyKernel3.git --depth=1
-         fi
+         git clone https://github.com/senhai1737/AnyKernel3.git --depth=1      
          rm -rf ./AnyKernel3/.git
          rm -rf ./AnyKernel3/push.sh
          cp kernel_workspace/kernel_platform/dist/Image ./AnyKernel3/
