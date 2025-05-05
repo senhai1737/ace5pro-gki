@@ -154,9 +154,8 @@ jobs:
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
       
        - name: Add sched_ext
-        working-directory: kernel_workspace/kernel_platform
         run: |
-          git clone https://github.com/t521418/sched_ext.git
+          git clone https://github.com/senhai1737/sched_ext.git
           cp -r ./sched_ext/* ./common/kernel/sched
           rm -rf ./sched_ext/.git
           cd common/kernel/sched
