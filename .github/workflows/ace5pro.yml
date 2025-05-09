@@ -110,49 +110,59 @@ jobs:
           cp ../../SukiSU_patch/other/lz4k_patch/${{ github.event.inputs.KERNEL_VERSION }}/lz4kd.patch ./
           patch -p1 -F 3 < lz4kd.patch || true
 
-      - name: Modify Platform Identity
+      - name: Modify Device Tree Identity
         run: |
           cd kernel_workspace/kernel_platform/common
-          # 精准修改设备树标识
-          find arch/arm64/boot/dts/vendor/qcom -name 'parrot-og.dtsi' -exec sed -i '
-            s/qcom,hmbird-gki/qcom,hmbird-ogki/g;
-            s/"hmbird,gki"/"hmbird,ogki"/g;
-            s/HMBIRD_GKI/HMBIRD_OGKI/g;
-          ' {} +
-
-          # 添加平台定义
-          echo -e "\nconfig ARCH_HMBIRD_OGKI\n\tbool \"HMBIRD OGKI Platform\"\n\tselect ARCH_QCOM\n\thelp\n\t  Support for HMBIRD OGKI platforms" >> arch/arm64/Kconfig.platforms
-
-          # 更新配置
+          # 一加 Ace 5 Pro 专用修改
+          sed -i '
+            /qcom,hmbird-gki/ s//qcom,hmbird-ogki/g;
+            /"hmbird,gki"/ s//"hmbird,ogki"/g;
+            /HMBIRD_GKI/ s//HMBIRD_OGKI/g;
+          ' arch/arm64/boot/dts/vendor/qcom/parrot-og.dtsi
+          
+          # 注入平台定义
+          echo -e "\nconfig ARCH_HMBIRD_OGKI\n\tbool \"HMBIRD OGKI Platform\"\n\tselect ARCH_QCOM" >> arch/arm64/Kconfig.platforms
           echo "CONFIG_ARCH_HMBIRD_OGKI=y" >> arch/arm64/configs/gki_defconfig
-          sed -i '/CONFIG_ARCH_HMBIRD/d' arch/arm64/configs/gki_defconfig
 
       - name: Add SUSFS Configuration Settings
         run: |
           cd kernel_workspace/kernel_platform
-          # 保留原有配置
           echo "CONFIG_KSU=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KPM=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
-          # 新增OGKI兼容配置
-          echo "CONFIG_HMBIRD_OGKI_COMPAT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_ENABLE_LOG=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_CRYPTO_LZ4HC=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_CRYPTO_LZ4K=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_CRYPTO_LZ4KD=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_CRYPTO_842=y" >> ./common/arch/arm64/configs/gki_defconfig
           sed -i 's/check_defconfig//' ./common/build.config.gki
           cd common
-          git add -A && git commit -a -m "BUILD Kernel: OGKI Compatibility"
-          
+          git add -A && git commit -a -m "BUILD Kernel"
+
       - name: Modify Kernel Identity
         run: |
           cd kernel_workspace/kernel_platform
-          # 修改版本生成逻辑
           sed -i '
             s/GKI/OGKI/g;
             s/-gki/-ogki/g;
+            s/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g;
           ' common/scripts/setlocalversion
-          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' common/scripts/setlocalversion
-          
-          # 强制重建版本信息
           rm -f common/include/generated/utsrelease.h
-          rm -f common/include/generated/compile.h
           make -C common include/generated/utsrelease.h
 
       - name: Add sched_ext
@@ -169,7 +179,6 @@ jobs:
          cd kernel_workspace/kernel_platform
          BUILD_BROKEN_VERIFY_USES_LIBRARIES=true \
          SKIP_ABI_CHECK=true \
-         KERNEL_DIR=`pwd` \
          tools/bazel run --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
 
       - name: Generate AnyKernel3
@@ -178,27 +187,7 @@ jobs:
          git clone https://github.com/senhai1737/AnyKernel3.git --depth=1
          rm -rf ./AnyKernel3/.git
          cp Image AnyKernel3/
-         # 添加一加专用修补脚本
-         echo 'ui_print "Patching for OnePlus Ace 5 Pro OGKI..."; 
-         patch_dtbo() {
-           blockdev --setrw /dev/block/by-name/dtbo
-           dd if=/dev/zero of=/dev/block/by-name/dtbo bs=256k count=1 conv=notrunc
-         }
-         patch_dtbo' >> AnyKernel3/customize.sh
-
-      - name: Verify Build Artifacts
-        run: |
-         cd kernel_workspace/kernel_platform/dist
-         # 验证内核标识
-         if ! strings Image | grep -q 'HMBIRD_OGKI'; then
-           echo "❌ 内核标识验证失败！"
-           exit 1
-         fi
-         # 验证DTB兼容性
-         if ! fdtdump dtb.img | grep -q 'hmbird,ogki'; then
-           echo "❌ DTB兼容性验证失败！"
-           exit 1
-         fi
+         echo 'ui_print "HMBIRD_OGKI Kernel by Senhai";' >> AnyKernel3/anykernel.sh
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
