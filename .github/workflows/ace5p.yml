@@ -10,7 +10,7 @@ on:
       FEIL:
         description: "配置文件"
         required: true
-        default: 'oneplus_ace5_pro'
+        default: 'oneplus_13t'
       CPUD:
         description: "处理器代号"
         required: true
