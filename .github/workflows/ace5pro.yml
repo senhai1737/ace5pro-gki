@@ -121,10 +121,6 @@ jobs:
           echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_MANUAL_HOOK=y" >> ./common/arch/arm64/configs/gki_defconfig
           
-           # 保持OGKI标识配置
-          echo "CONFIG_HMBIRD_OGKI=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_HMBIRD_GKI=n" >> ./common/arch/arm64/configs/gki_defconfig
-          
           # Add SUSFS configuration settings
           echo "CONFIG_KSU_SUSFS=y" >> ./common/arch/arm64/configs/gki_defconfig
           echo "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
@@ -157,21 +153,44 @@ jobs:
          cd kernel_workspace/kernel_platform
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
 
-      - name: Force OGKI dtbo generation
+      - name: Force OGKI configuration
         run: |
           cd kernel_workspace/kernel_platform
-          # 修改构建配置强制生成OGKI dtbo
-          sed -i 's/PREBUILT_DTBO_NAME := .*/PREBUILT_DTBO_NAME := hmbird_ogki_dtbo.img/' common/build.config.gki
-          sed -i 's/^DTBO_CFG := .*/DTBO_CFG := ogki_dtbo.cfg/' common/build.config.gki
-
-      - name: Patch kernel version matching
+          # 强制锁定OGKI配置
+          echo "CONFIG_HMBIRD_OGKI=y" >> ./common/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_HMBIRD_GKI=n" >> ./common/arch/arm64/configs/gki_defconfig
+          # 修改设备树兼容性标识
+          find common/arch/arm64/boot/dts/vendor/ -type f \( -name "*.dts" -o -name "*.dtsi" \) \
+            -exec sed -i 's/HMBIRD_GKI/HMBIRD_OGKI/gI' {} +
+      - name: Clean build cache
         run: |
-          cd kernel_workspace/kernel_platform/common
-          # 确保本地版本包含OGKI标识
-          sed -i 's/-android15/-ogki-android15/' scripts/setlocalversion
-          # 修复ABI版本匹配
-          echo "android15-6.6-ogki" > abi_gki_aarch64.xml
+          cd kernel_workspace/kernel_platform
+          bazel clean --expunge
+
+      - name: Build kernel with OGKI params
+        run: |
+          cd kernel_workspace/kernel_platform
+          BUILD_DTBO_CONFIG=ogki_dtbo_config \
+          KMI_SYMBOL_LIST=abi_gki_aarch64.xml \
+          tools/bazel run --config=fast --config=stamp //common:kernel_aarch64_dist \
+            -- --kmi_symbol_list=abi_gki_aarch64.xml \
+            --dtbo_config=ogki_dtbo_config
+
+      - name: Verify build output
+        run: |
+          cd kernel_workspace/kernel_platform/dist
+          echo "=== 内核标识符验证 ==="
+          if ! strings Image | grep -q 'HMBIRD_OGKI'; then
+            echo "错误：内核未包含OGKI标识!"
+            exit 1
+          fi
           
+          echo "=== DTBO兼容性验证 ==="
+          if ! mkdtimg dump dtbo.img | grep -q 'hmbird_ogki'; then
+            echo "错误：DTBO未生成OGKI标识!"
+            exit 1
+          fi
+                                
       - name: Add sched_ext
         run: |
          cd kernel_workspace/kernel_platform/
