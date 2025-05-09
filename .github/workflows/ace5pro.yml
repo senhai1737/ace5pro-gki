@@ -157,13 +157,14 @@ jobs:
         run: |
           cd kernel_workspace/kernel_platform
 
-          # 精确路径定义
+          # 根据manifest确认正确路径
+          GKI_DEFCONFIG_PATH="msm-kernel/arch/arm64/configs/gki_defconfig"
           QCOM_DTS_PATH="msm-kernel/arch/arm64/boot/dts/qcom/"
           ONEPLUS_DTS_PATH="vendor/oneplus/dts/"
 
-          # 强制OGKI配置
-          echo "CONFIG_HMBIRD_OGKI=y" >> android_kernel_common_oneplus_sm8750/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_HMBIRD_GKI=n" >> android_kernel_common_oneplus_sm8750/arch/arm64/configs/gki_defconfig
+          # 强制OGKI配置（使用manifest定义的真实路径）
+          echo "CONFIG_HMBIRD_OGKI=y" >> ${GKI_DEFCONFIG_PATH}
+          echo "CONFIG_HMBIRD_GKI=n" >> ${GKI_DEFCONFIG_PATH}
 
           # 修改设备树兼容性标识
           find ${QCOM_DTS_PATH} -type f \( -name "*.dts" -o -name "*.dtsi" \) \
