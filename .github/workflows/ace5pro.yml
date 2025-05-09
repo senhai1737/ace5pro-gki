@@ -153,9 +153,9 @@ jobs:
          cd kernel_workspace/kernel_platform
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
 
-    - name: Deep Kernel Identity Modification
-      run: |
-        cd kernel_workspace/kernel_platform/common
+      - name: Deep Kernel Identity
+        run: |
+         cd kernel_workspace/kernel_platform/common
         
         # 全量替换GKI标识
         grep -rl 'GKI' --exclude-dir={.git,.repo} . | xargs sed -i 's/GKI/OGKI/g'
