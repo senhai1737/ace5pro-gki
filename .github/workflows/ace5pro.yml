@@ -1,5 +1,5 @@
 
-name: ace5
+name: ace5pro
 on:
   workflow_dispatch:
     inputs:
@@ -157,7 +157,7 @@ jobs:
          cd kernel_workspace/kernel_platform
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
 
-- name: Force OGKI dtbo generation
+      - name: Force OGKI dtbo generation
         run: |
           cd kernel_workspace/kernel_platform
           # 修改构建配置强制生成OGKI dtbo
