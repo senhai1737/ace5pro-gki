@@ -155,32 +155,24 @@ jobs:
 
       - name: Deep Kernel Identity
         run: |
-         cd kernel_workspace/kernel_platform/common
+         cd kernel_workspace/kernel_platform/common               
+         grep -rl 'GKI' --exclude-dir={.git,.repo} . | xargs sed -i 's/GKI/OGKI/g'
+         sed -i 's/OGKIKernel/GKIKernel/g' drivers/android/Kconfig
+         sed -i 's/check_gki_compatibility/check_ogki_compatibility/g' drivers/of/property.c
         
-        # 全量替换GKI标识
-        grep -rl 'GKI' --exclude-dir={.git,.repo} . | xargs sed -i 's/GKI/OGKI/g'
+      - name: Build kernel
+        run: |
+         cd kernel_workspace/kernel_platform
+         BUILD_BROKEN_VERIFY_USES_LIBRARIES=true \
+         SKIP_ABI_CHECK=true \
+         KERNEL_DIR=`pwd` \
+         tools/bazel run --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
         
-        # 修复可能被误替换的路径
-        sed -i 's/OGKIKernel/GKIKernel/g' drivers/android/Kconfig
-        
-        # 更新平台检测逻辑
-        sed -i 's/check_gki_compatibility/check_ogki_compatibility/g' drivers/of/property.c
-        
-    - name: Build kernel
-      run: |
-        cd kernel_workspace/kernel_platform
-        # 添加强制重建参数
-        BUILD_BROKEN_VERIFY_USES_LIBRARIES=true \
-        SKIP_ABI_CHECK=true \
-        KERNEL_DIR=`pwd` \
-        tools/bazel run --config=fast --config=stamp --lto=thin //common:kernel_aarch64_dist -- --dist_dir=dist
-        
-    - name: Make AnyKernel3
-      run: |
-        cd kernel_workspace/kernel_platform/dist/
-        # 直接使用原始Image
-        git clone https://github.com/senhai1737/AnyKernel3.git --depth=1
-        cp Image AnyKernel3/
+      - name: Make AnyKernel3
+        run: |
+          cd kernel_workspace/kernel_platform/dist/
+          git clone https://github.com/senhai1737/AnyKernel3.git --depth=1
+          cp Image AnyKernel3/
                                         
       - name: Add sched_ext
         run: |
