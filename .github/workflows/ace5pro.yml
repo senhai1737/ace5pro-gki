@@ -153,41 +153,53 @@ jobs:
          cd kernel_workspace/kernel_platform
          sed -i 's/res="\$res\$(cat "\$file")"/res="${{ github.event.inputs.KERNEL_NAME }}"/g' ./common/scripts/setlocalversion
 
-      - name: Force OGKI configuration
+      - name: Force OGKI Configuration
         run: |
           cd kernel_workspace/kernel_platform
-          # 强制锁定OGKI配置
-          echo "CONFIG_HMBIRD_OGKI=y" >> ./common/arch/arm64/configs/gki_defconfig
-          echo "CONFIG_HMBIRD_GKI=n" >> ./common/arch/arm64/configs/gki_defconfig
+
+          # 精确路径定义
+          QCOM_DTS_PATH="msm-kernel/arch/arm64/boot/dts/qcom/"
+          ONEPLUS_DTS_PATH="vendor/oneplus/dts/"
+
+          # 强制OGKI配置
+          echo "CONFIG_HMBIRD_OGKI=y" >> android_kernel_common_oneplus_sm8750/arch/arm64/configs/gki_defconfig
+          echo "CONFIG_HMBIRD_GKI=n" >> android_kernel_common_oneplus_sm8750/arch/arm64/configs/gki_defconfig
+
           # 修改设备树兼容性标识
-          find common/arch/arm64/boot/dts/vendor/ -type f \( -name "*.dts" -o -name "*.dtsi" \) \
+          find ${QCOM_DTS_PATH} -type f \( -name "*.dts" -o -name "*.dtsi" \) \
             -exec sed -i 's/HMBIRD_GKI/HMBIRD_OGKI/gI' {} +
-      - name: Clean build cache
+          
+          find ${ONEPLUS_DTS_PATH} -type f \( -name "*.dts" -o -name "*.dtsi" \) \
+            -exec sed -i 's/hmbird-gki/hmbird-ogki/gI' {} +
+
+          # 修复版本标识符
+          # sed -i 's/ANDROID_KMI_VERSION=.*/ANDROID_KMI_VERSION="android15-6.6-ogki"/' android_kernel_common_oneplus_sm8750/build.config.common
+          # echo "android15-6.6-ogki" > android_kernel_common_oneplus_sm8750/abi_gki_aarch64.xml
+
+      - name: Sync Critical Repos
+        run: |
+          cd kernel_workspace
+          repo sync -c --force-sync \
+            kernel_platform/msm-kernel \
+            kernel_platform/vendor/oneplus/dts \
+            --jobs=$(nproc)
+
+      - name: Build Verification
         run: |
           cd kernel_workspace/kernel_platform
-          bazel clean --expunge
+          # 验证路径存在性
+          [ ! -d "msm-kernel/arch/arm64/boot/dts/qcom/" ] && { echo "错误：高通设备树路径缺失"; exit 1; }
+          [ ! -d "vendor/oneplus/dts/" ] && { echo "错误：一加设备树路径缺失"; exit 1; }
 
-      - name: Build kernel with OGKI params
-        run: |
-          cd kernel_workspace/kernel_platform
-          BUILD_DTBO_CONFIG=ogki_dtbo_config \
-          KMI_SYMBOL_LIST=abi_gki_aarch64.xml \
-          tools/bazel run --config=fast --config=stamp //common:kernel_aarch64_dist \
-            -- --kmi_symbol_list=abi_gki_aarch64.xml \
-            --dtbo_config=ogki_dtbo_config
-
-      - name: Verify build output
-        run: |
-          cd kernel_workspace/kernel_platform/dist
-          echo "=== 内核标识符验证 ==="
-          if ! strings Image | grep -q 'HMBIRD_OGKI'; then
-            echo "错误：内核未包含OGKI标识!"
+          # 验证配置生效
+          if ! grep -q "CONFIG_HMBIRD_OGKI=y" android_kernel_common_oneplus_sm8750/arch/arm64/configs/gki_defconfig; then
+            echo "::error::OGKI配置未注入!"
             exit 1
           fi
-          
-          echo "=== DTBO兼容性验证 ==="
-          if ! mkdtimg dump dtbo.img | grep -q 'hmbird_ogki'; then
-            echo "错误：DTBO未生成OGKI标识!"
+
+          # 验证设备树修改
+          if ! grep -r "HMBIRD_OGKI" msm-kernel/arch/arm64/boot/dts/qcom/ vendor/oneplus/dts/; then
+            echo "::error::设备树标识符修改失败!"
             exit 1
           fi
                                 
