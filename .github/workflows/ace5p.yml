@@ -1,5 +1,5 @@
 
-name: sm8750-no-kpm
+name: ace5p
 on:
   workflow_dispatch:
     inputs:
